@@ -1,0 +1,62 @@
+import json
+import os
+import time
+import requests
+import cloudscraper
+from dhooks import Webhook, Embed
+
+
+with open("config.json", "r") as config_file:
+    config = json.load(config_file)
+
+webhook_enabled = config['webhook_enabled']
+webhook_url = config['webhook']
+minimum_amount = config['minimum_amount']
+webhook_ping = config['webhook_ping']
+refresh_rate = config['refresh_rate']
+
+if webhook_enabled == "True":
+    webhook = Webhook(webhook_url)
+    webhook_username = webhook_ping.split('@')[1].split('>')[0]
+
+while True:
+    try:
+        scraper = cloudscraper.create_scraper()
+        r = scraper.get('https://rest-bf.blox.land/chat/history').json()
+        check = r['rain']
+        if check['active'] == True:
+            if check['prize'] >= minimum_amount:
+                grabprize = str(check['prize'])[:-2]
+                prize = (format(int(grabprize), ","))
+                host = check['host']
+                getduration = check['duration']
+                convert = (getduration/(1000*60)) % 60
+                duration = (int(convert))
+                waiting = (convert*60+10)
+                sent = time.strftime("%d/%m/%Y %H:%M:%S", time.localtime(int(time.time())))
+                if webhook_enabled == "True":
+                    userid = requests.get(f"https://api.roblox.com/users/get-by-username?username={host}").json()['Id']
+                    thumburl = (f"https://www.roblox.com/headshot-thumbnail/image?userId={userid}&height=50&width=50&format=png")
+
+                    embed = Embed(
+                        title=f'💸{host} is hosting a chat rain! 💸',
+                        url='https://bloxflip.com/',
+                        color=0xFFC800,
+                        timestamp='now'
+                    )
+
+                    embed.add_field(name='🤑Rain Amount🤑', value=f'→  {prize}💲')
+                    embed.add_field(name='⏳Expiration⏳', value=f'→  {duration} minutes')
+                    embed.add_field(name='👥Host👥', value=f'→  [{host}](https://www.roblox.com/users/{userid}/profile)')
+
+                    embed.set_thumbnail(thumburl)
+
+                    webhook.send(embed=embed)
+            else:
+                time.sleep(53)
+            time.sleep(waiting)
+        elif check['active'] == False:
+            time.sleep(refresh_rate)
+    except Exception as e:
+        print(e)
+        time.sleep(refresh_rate)
